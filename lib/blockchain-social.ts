@@ -1,7 +1,7 @@
 import { SOCIAL_CONTRACT_ADDRESS, GAS_FEES, SOCIAL_CONTRACT_ABI } from "./social-contract"
 import { callContractFunction } from "./transaction"
 import { ethers } from "ethers"
-import { ARC_LINKS } from "./web3-config"
+import { ARC_LINKS, ARCNET_CONFIG } from "./web3-config"
 
 export { GAS_FEES, ARC_LINKS }
 
@@ -26,33 +26,9 @@ export interface PostInteraction {
   txHash: string
 }
 
-// Store content mapping in localStorage (in production, use IPFS or decentralized storage)
-function storeContent(contentHash: string, content: string, mediaUrls: string[]) {
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('arcnet_posts_content') || '{}'
-      const contentMap = JSON.parse(stored)
-      contentMap[contentHash] = { content, mediaUrls, timestamp: Date.now() }
-      localStorage.setItem('arcnet_posts_content', JSON.stringify(contentMap))
-    } catch (error) {
-      console.error('[Blockchain] Error storing content:', error)
-    }
-  }
-}
-
-function getStoredContent(contentHash: string): { content: string; mediaUrls: string[] } | null {
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('arcnet_posts_content') || '{}'
-      const contentMap = JSON.parse(stored)
-      return contentMap[contentHash] || null
-    } catch (error) {
-      console.error('[Blockchain] Error retrieving content:', error)
-      return null
-    }
-  }
-  return null
-}
+// Note: Content is now stored directly in the contract's contentHash field
+// No need for localStorage - all users can read content from the blockchain
+// This ensures posts are visible to everyone, not just the creator
 
 // Create a post on the blockchain
 export async function createPostOnChain(
@@ -65,31 +41,25 @@ export async function createPostOnChain(
   }
 
   try {
-    // Create content hash (simplified version - in production use IPFS)
-    const timestamp = Date.now()
-    const contentHash = ethers.id(`${content}-${timestamp}-${mediaUrls.join(',')}`)
-    
-    // Store content in localStorage for retrieval (in production, upload to IPFS)
-    storeContent(contentHash, content, mediaUrls)
-
     console.log("[Blockchain] Criando post na blockchain Arc...")
-    console.log("[Blockchain] Content hash:", contentHash)
+    console.log("[Blockchain] Conteúdo:", content.substring(0, 50) + "...")
     console.log("[Blockchain] Tipo de conteúdo:", contentType)
+    console.log("[Blockchain] Media URLs:", mediaUrls.length)
     console.log("[Blockchain] Taxa estimada:", GAS_FEES.createPost, "USDC")
 
-    // Store content and media URLs in contract
-    // Format: content + media URLs separated by special delimiter
-    // This allows all users to see the full post with media
-    const contentWithMedia = mediaUrls.length > 0
-      ? `${content}|||MEDIA:${mediaUrls.join('|||')}`
-      : content
+    // Store content DIRECTLY in contract's contentHash field
+    // This ensures ALL users can see the content, not just the creator
+    // Format: content text (media URLs are stored separately in mediaUrls array)
+    const contentHash = content.trim() // Store content directly, not a hash
     
     // Call contract function
+    // The contract stores: contentHash (content text), contentType, and mediaUrls array
+    // This way, all users can read the full post from the blockchain
     const result = await callContractFunction(
       SOCIAL_CONTRACT_ADDRESS,
       SOCIAL_CONTRACT_ABI,
       "createPost",
-      [contentWithMedia, contentType, mediaUrls], // Store content and media URLs
+      [contentHash, contentType, mediaUrls], // Store content directly in contract
       0n // No value sent
     )
 
@@ -125,10 +95,9 @@ export async function createPostOnChain(
   }
 }
 
-// Get content from hash (in production, fetch from IPFS)
-export function getContentFromHash(contentHash: string): { content: string; mediaUrls: string[] } | null {
-  return getStoredContent(contentHash)
-}
+// Content is now stored directly in the contract
+// Use getAllPostsFromChain() or getPost() to retrieve content
+// This ensures all users can see all posts
 
 // Like a post on the blockchain
 export async function likePostOnChain(postId: string): Promise<string> {
@@ -267,6 +236,7 @@ export async function hasUserLikedPost(postId: string, userAddress: string): Pro
 }
 
 // Get all posts from the blockchain
+// This function works even without wallet connection - uses read-only provider
 export async function getAllPostsFromChain(): Promise<OnChainPost[]> {
   if (SOCIAL_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") {
     console.warn("[Blockchain] Contract not configured, returning empty posts")
@@ -274,7 +244,18 @@ export async function getAllPostsFromChain(): Promise<OnChainPost[]> {
   }
 
   try {
-    const { provider } = await getProviderAndSigner()
+    // Use read-only provider - works even without wallet connection
+    // This ensures ALL users can see posts, not just those with connected wallets
+    let provider: ethers.BrowserProvider | ethers.JsonRpcProvider
+    
+    if (typeof window !== 'undefined' && window.ethereum) {
+      // Use browser provider if available
+      provider = new ethers.BrowserProvider(window.ethereum, 'any')
+    } else {
+      // Use public RPC as fallback (read-only)
+      provider = new ethers.JsonRpcProvider(ARCNET_CONFIG.rpcUrls[0])
+    }
+    
     const contract = new ethers.Contract(SOCIAL_CONTRACT_ADDRESS, SOCIAL_CONTRACT_ABI, provider)
     
     // Get all post IDs
@@ -292,33 +273,18 @@ export async function getAllPostsFromChain(): Promise<OnChainPost[]> {
         // Convert BigInt to number for timestamp
         const timestamp = Number(post.timestamp) * 1000 // Convert to milliseconds
         
-        // Parse content and media from contentHash
-        // Format: content|||MEDIA:url1|||url2|||...
-        let displayContent = post.contentHash
-        let displayMediaUrls = post.mediaUrls
-        
-        // Check if content contains media separator
-        if (displayContent.includes('|||MEDIA:')) {
-          const parts = displayContent.split('|||MEDIA:')
-          displayContent = parts[0]
-          if (parts[1]) {
-            // Media URLs are already in post.mediaUrls, but ensure they're correct
-            displayMediaUrls = parts[1].split('|||').filter(url => url.length > 0)
-            // If mediaUrls from contract are empty, use parsed ones
-            if (displayMediaUrls.length > 0 && post.mediaUrls.length === 0) {
-              displayMediaUrls = displayMediaUrls
-            } else {
-              displayMediaUrls = post.mediaUrls
-            }
-          }
-        }
+        // Content is stored directly in contentHash field
+        // Media URLs are stored separately in mediaUrls array
+        // This ensures ALL users can see the full post content
+        const displayContent = post.contentHash || ""
+        const displayMediaUrls = post.mediaUrls || []
         
         return {
           id: postId.toString(),
           author: post.author,
-          content: displayContent,
+          content: displayContent, // Content is directly readable from contract
           contentType: post.contentType as "text" | "image" | "video" | "mixed",
-          mediaUrls: displayMediaUrls,
+          mediaUrls: displayMediaUrls, // Media URLs from contract
           timestamp: timestamp,
           likes: Number(post.likes),
           comments: Number(post.comments),
@@ -342,6 +308,48 @@ export async function getAllPostsFromChain(): Promise<OnChainPost[]> {
   } catch (error: any) {
     console.error("[Blockchain] Error fetching posts:", error)
     // Return empty array on error instead of throwing
+    return []
+  }
+}
+
+// Get comments for a post
+export interface OnChainComment {
+  id: string
+  postId: string
+  commenter: string
+  content: string
+  timestamp: number
+}
+
+export async function getPostComments(postId: string): Promise<OnChainComment[]> {
+  if (SOCIAL_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") {
+    return []
+  }
+
+  try {
+    // Use read-only provider - works even without wallet connection
+    let provider: ethers.BrowserProvider | ethers.JsonRpcProvider
+    
+    if (typeof window !== 'undefined' && window.ethereum) {
+      provider = new ethers.BrowserProvider(window.ethereum, 'any')
+    } else {
+      provider = new ethers.JsonRpcProvider(ARCNET_CONFIG.rpcUrls[0])
+    }
+    
+    const contract = new ethers.Contract(SOCIAL_CONTRACT_ADDRESS, SOCIAL_CONTRACT_ABI, provider)
+    const postIdBigInt = BigInt(postId)
+    
+    const comments = await contract.getPostComments(postIdBigInt)
+    
+    return comments.map((comment: any) => ({
+      id: comment.id.toString(),
+      postId: postId,
+      commenter: comment.commenter,
+      content: comment.content,
+      timestamp: Number(comment.timestamp) * 1000, // Convert to milliseconds
+    }))
+  } catch (error) {
+    console.error("[Blockchain] Error fetching comments:", error)
     return []
   }
 }

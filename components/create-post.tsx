@@ -121,8 +121,10 @@ export function CreatePost() {
         ),
       })
 
-      // Refresh posts after creating
-      window.dispatchEvent(new Event('posts-refresh'))
+      // Refresh posts after creating - with a small delay to ensure transaction is mined
+      setTimeout(() => {
+        window.dispatchEvent(new Event('posts-refresh'))
+      }, 2000) // Wait 2 seconds for transaction to be mined
 
       // Reset form
       setContent("")

@@ -7,10 +7,12 @@ import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { useWeb3 } from "@/contexts/web3-context"
 import { useToast } from "@/hooks/use-toast"
-import { likePostOnChain, unlikePostOnChain, commentOnChain, sharePostOnChain, hasUserLikedPost, GAS_FEES } from "@/lib/blockchain-social"
+import { likePostOnChain, unlikePostOnChain, commentOnChain, sharePostOnChain, hasUserLikedPost, GAS_FEES, getPostComments, type OnChainComment } from "@/lib/blockchain-social"
 import { getTransactionExplorerUrl, formatTransactionHash } from "@/lib/blockchain-interactions"
 import { getMediaFromURL } from "@/lib/media-storage"
-import { Heart, MessageCircle, Share2, Loader2, ExternalLink, Play } from "lucide-react"
+import { followUser, unfollowUser, isFollowing } from "@/lib/follow-system"
+import { sendPrivateMessage } from "@/lib/private-messages"
+import { Heart, MessageCircle, Share2, Loader2, ExternalLink, Play, UserPlus, UserMinus, Send, Check, ArrowRight } from "lucide-react"
 import type { OnChainPost } from "@/lib/blockchain-social"
 import { formatDistanceToNow } from "date-fns"
 import { ARC_LINKS } from "@/lib/web3-config"
@@ -26,6 +28,9 @@ export function PostCard({ post }: PostCardProps) {
   const [shares, setShares] = useState(post.shares)
   const [commentText, setCommentText] = useState("")
   const [showComments, setShowComments] = useState(false)
+  const [postComments, setPostComments] = useState<OnChainComment[]>([])
+  const [isFollowingUser, setIsFollowingUser] = useState(false)
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
   const { account, isConnected } = useWeb3()
   const { toast } = useToast()
@@ -36,6 +41,32 @@ export function PostCard({ post }: PostCardProps) {
       hasUserLikedPost(post.id, account).then(setIsLiked).catch(console.error)
     }
   }, [account, post.id])
+
+  // Check if user is following the post author
+  useEffect(() => {
+    if (account && post.author && account.toLowerCase() !== post.author.toLowerCase()) {
+      isFollowing(post.author).then(setIsFollowingUser).catch(console.error)
+    }
+  }, [account, post.author])
+
+  // Load comments when showing comments section
+  useEffect(() => {
+    if (showComments && post.id) {
+      loadComments()
+    }
+  }, [showComments, post.id])
+
+  async function loadComments() {
+    setIsLoadingComments(true)
+    try {
+      const comments = await getPostComments(post.id)
+      setPostComments(comments)
+    } catch (error) {
+      console.error("Error loading comments:", error)
+    } finally {
+      setIsLoadingComments(false)
+    }
+  }
 
   const timestamp = new Date(post.timestamp)
   const shortAddress = `${post.author.slice(0, 6)}...${post.author.slice(-4)}`
@@ -92,14 +123,14 @@ export function PostCard({ post }: PostCardProps) {
           title: "Post liked!",
           description: (
             <div className="space-y-1">
-              <a
+            <a
                 href={getTransactionExplorerUrl(txHash)}
-                target="_blank"
-                rel="noopener noreferrer"
+              target="_blank"
+              rel="noopener noreferrer"
                 className="flex items-center gap-1 text-primary underline text-sm"
-              >
+            >
                 View transaction {formatTransactionHash(txHash)} <ExternalLink className="h-3 w-3" />
-              </a>
+            </a>
             </div>
           ),
         })
@@ -137,14 +168,14 @@ export function PostCard({ post }: PostCardProps) {
         title: "Comment added!",
         description: (
           <div className="space-y-1">
-            <a
+          <a
               href={getTransactionExplorerUrl(txHash)}
-              target="_blank"
-              rel="noopener noreferrer"
+            target="_blank"
+            rel="noopener noreferrer"
               className="flex items-center gap-1 text-primary underline text-sm"
-            >
+          >
               View transaction {formatTransactionHash(txHash)} <ExternalLink className="h-3 w-3" />
-            </a>
+          </a>
           </div>
         ),
       })
@@ -187,23 +218,103 @@ export function PostCard({ post }: PostCardProps) {
         title: "Post shared!",
         description: (
           <div className="space-y-1">
-            <a
+          <a
               href={getTransactionExplorerUrl(txHash)}
-              target="_blank"
-              rel="noopener noreferrer"
+            target="_blank"
+            rel="noopener noreferrer"
               className="flex items-center gap-1 text-primary underline text-sm"
-            >
+          >
               View transaction {formatTransactionHash(txHash)} <ExternalLink className="h-3 w-3" />
-            </a>
+          </a>
           </div>
         ),
       })
+      
+      // Refresh comments
+      await loadComments()
       
       // Refresh posts to get updated counts
       window.dispatchEvent(new Event('posts-refresh'))
     } catch (error: any) {
       toast({
         title: "Transaction failed",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(null)
+    }
+  }
+
+  async function handleFollow() {
+    if (!isConnected || !account) {
+      toast({
+        title: "Wallet not connected",
+        description: "Please connect your wallet to follow users",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (account.toLowerCase() === post.author.toLowerCase()) {
+      return
+    }
+
+    setIsProcessing("follow")
+
+    try {
+      if (isFollowingUser) {
+        await unfollowUser(post.author)
+        setIsFollowingUser(false)
+        toast({
+          title: "Unfollowed",
+          description: `You are no longer following ${post.author.slice(0, 6)}...${post.author.slice(-4)}`,
+        })
+      } else {
+        await followUser(post.author)
+        setIsFollowingUser(true)
+        toast({
+          title: "Following",
+          description: `You are now following ${post.author.slice(0, 6)}...${post.author.slice(-4)}`,
+        })
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(null)
+    }
+  }
+
+  async function handleSendMessage() {
+    if (!isConnected || !account) {
+      toast({
+        title: "Wallet not connected",
+        description: "Please connect your wallet to send messages",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const messageContent = prompt("Enter your message:")
+    if (!messageContent || !messageContent.trim()) {
+      return
+    }
+
+    setIsProcessing("message")
+
+    try {
+      await sendPrivateMessage(post.author, messageContent)
+      toast({
+        title: "Message sent!",
+        description: "Your message has been sent successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error sending message",
         description: error.message,
         variant: "destructive",
       })
@@ -223,11 +334,51 @@ export function PostCard({ post }: PostCardProps) {
 
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <div>
-                <span className="font-semibold">{shortAddress}</span>
-                <span className="ml-2 text-sm text-muted-foreground">
-                  {formatDistanceToNow(timestamp, { addSuffix: true })}
-                </span>
+              <div className="flex items-center gap-2">
+                <div>
+                  <span className="font-semibold">{shortAddress}</span>
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {formatDistanceToNow(timestamp, { addSuffix: true })}
+                  </span>
+                </div>
+                {account && account.toLowerCase() !== post.author.toLowerCase() && (
+                  <div className="flex items-center gap-1 ml-2">
+                    <Button
+                      variant={isFollowingUser ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 px-2 text-xs gap-1"
+                      onClick={handleFollow}
+                      disabled={!!isProcessing}
+                    >
+                      {isProcessing === "follow" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : isFollowingUser ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          Following
+                        </>
+                      ) : (
+                        <>
+                          <ArrowRight className="h-3 w-3" />
+                          Follow
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={handleSendMessage}
+                      disabled={!!isProcessing}
+                    >
+                      {isProcessing === "message" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Send className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
               {post.txHash && (
                 <a
@@ -296,8 +447,8 @@ export function PostCard({ post }: PostCardProps) {
                             window.open(mediaUrl, '_blank')
                           }}
                         />
-                      )}
-                    </div>
+                    )}
+                  </div>
                   )
                 })}
               </div>
@@ -346,19 +497,64 @@ export function PostCard({ post }: PostCardProps) {
               </Button>
             </div>
 
-            {/* Comment Input */}
+            {/* Comments Section */}
             {showComments && (
-              <div className="mt-3 flex gap-2">
-                <Input
-                  placeholder="Add a comment (on-chain)"
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  disabled={!isConnected || !!isProcessing}
-                  className="text-sm"
-                />
-                <Button size="sm" onClick={handleComment} disabled={!commentText.trim() || !!isProcessing}>
-                  {isProcessing === "comment" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Post"}
-                </Button>
+              <div className="mt-3 space-y-3 border-t pt-3">
+                {/* Comment Input */}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add a comment (on-chain)"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleComment()
+                      }
+                    }}
+                    disabled={!isConnected || !!isProcessing}
+                    className="text-sm"
+                  />
+                  <Button size="sm" onClick={handleComment} disabled={!commentText.trim() || !!isProcessing}>
+                    {isProcessing === "comment" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Post"}
+                  </Button>
+                </div>
+
+                {/* Comments List */}
+                {isLoadingComments ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : postComments.length === 0 ? (
+                  <div className="text-center py-4 text-sm text-muted-foreground">
+                    No comments yet. Be the first to comment!
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {postComments.map((comment) => {
+                      const commentAuthor = `${comment.commenter.slice(0, 6)}...${comment.commenter.slice(-4)}`
+                      const commentTime = new Date(comment.timestamp)
+                      
+                      return (
+                        <div key={comment.id} className="flex gap-2 p-2 rounded-lg bg-muted/50">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/shapes/svg?seed=${comment.commenter}`} />
+                            <AvatarFallback>{comment.commenter.slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{commentAuthor}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(commentTime, { addSuffix: true })}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-sm">{comment.content}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

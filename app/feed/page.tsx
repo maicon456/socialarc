@@ -31,8 +31,19 @@ export default function FeedPage() {
   }
 
   useEffect(() => {
+    // Load posts on mount and when connection status changes
+    // Posts are visible to everyone, even without wallet connection
     loadPosts()
   }, [isConnected])
+
+  // Auto-refresh posts every 30 seconds to show new posts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadPosts()
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [])
 
   // Listen for refresh events
   useEffect(() => {

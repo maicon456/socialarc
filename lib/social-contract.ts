@@ -83,6 +83,33 @@ export const SOCIAL_CONTRACT_ABI = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "uint256", name: "postId", type: "uint256" }],
+    name: "getPostComments",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "id", type: "uint256" },
+          { internalType: "uint256", name: "postId", type: "uint256" },
+          { internalType: "address", name: "commenter", type: "address" },
+          { internalType: "string", name: "content", type: "string" },
+          { internalType: "uint256", name: "timestamp", type: "uint256" },
+        ],
+        internalType: "struct SocialFeed.Comment[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "user", type: "address" }],
+    name: "getUserPosts",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       { indexed: true, internalType: "uint256", name: "postId", type: "uint256" },
