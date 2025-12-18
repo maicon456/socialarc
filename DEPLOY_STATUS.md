@@ -64,3 +64,4 @@ NEXT_PUBLIC_SOCIAL_CONTRACT_ADDRESS=0x... (endereço do SocialFeed)
 - **Docs**: https://docs.arc.network
 
 
+

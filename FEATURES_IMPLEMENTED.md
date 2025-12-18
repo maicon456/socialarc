@@ -132,3 +132,4 @@ O dapp está totalmente funcional com:
 - Interações registradas na blockchain
 - Tudo visível para todos os usuários
 
+
