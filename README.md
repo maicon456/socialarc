@@ -1,181 +1,290 @@
-# Arcnet Nostr-like DApp
+# Arc Social - Decentralized Communication DApp
 
-Um aplicativo descentralizado (dApp) inspirado no protocolo Nostr, construído para a rede Arcnet testnet. Este projeto implementa uma rede social descentralizada onde as publicações são assinadas com carteiras Ethereum e podem ser armazenadas em IPFS.
+A decentralized social communication platform built on Arc Network with Nostr protocol integration. Experience true censorship-resistant communication where you own your identity and data.
 
-## 🚀 Tecnologias
+## Features
 
-- **Next.js 14** - Framework React com App Router
-- **TypeScript** - Tipagem estática
-- **Tailwind CSS** - Estilização
-- **Framer Motion** - Animações
-- **ethers.js** - Interação com blockchain
-- **Lucide React** - Ícones
+### 1. Nostr Protocol Integration
+- Decentralized identity with cryptographic key pairs (npub/nsec)
+- Multi-relay support for redundancy
+- End-to-end encrypted direct messages
+- Cross-platform identity portability
+- Client-side signing and verification
 
-## 📋 Pré-requisitos
+### 2. Arc Network Blockchain
+- **Chain ID**: 5042002 (Arc Testnet)
+- **Native Gas Token**: USDC (18 decimals)
+- **Stable Fee Design**: Predictable fiat-based transaction costs
+- **Deterministic Finality**: Sub-second transaction finality
+- **EVM Compatible**: Deploy Solidity smart contracts
 
-- Node.js 18+ instalado
-- npm ou yarn
-- MetaMask ou outra carteira Ethereum compatível
+### 3. Social Feed
+- Real-time note publishing and reading
+- Subscribe to Nostr relays for event streaming
+- Upvote and comment functionality
+- User profiles with avatars
+- Chronological and filtered feeds
 
-## 🛠️ Instalação
+### 4. Relay Management
+- Connect to multiple Nostr relays
+- Real-time connection status monitoring
+- Add custom relay URLs
+- Recommended relay discovery
+- Geographic relay distribution
 
-1. **Navegue até o diretório do projeto:**
-   ```bash
-   cd arcnet-nostr-dapp
-   ```
+### 5. User Discovery
+- Browse verified users
+- Follow interesting profiles
+- Search by name and interests
+- View user statistics and activity
+- Cross-platform identity verification
 
-2. **Instale as dependências:**
-   ```bash
-   npm install
-   # ou
-   yarn install
-   ```
+### 6. Web3 Wallet Integration
+- MetaMask connection to Arc Network
+- Automatic network switching
+- USDC balance display
+- Transaction signing
+- Identicon avatar generation
 
-3. **Execute o servidor de desenvolvimento:**
-   ```bash
-   npm run dev
-   # ou
-   yarn dev
-   ```
+## Tech Stack
 
-4. **Abra o navegador em:**
-   ```
-   http://localhost:3000
-   ```
+### Frontend
+- **Next.js 16** - React framework with App Router
+- **React 19.2** - Latest React with new features (useEffectEvent, Activity)
+- **TypeScript** - Type-safe development
+- **Tailwind CSS v4** - Modern utility-first styling
+- **shadcn/ui** - High-quality accessible components
 
-## 📁 Estrutura do Projeto
+### Blockchain
+- **Arc Network Testnet** - Layer-1 EVM-compatible blockchain
+- **USDC Gas Token** - Stable, predictable transaction fees
+- **MetaMask** - Web3 wallet provider
+- **Ethers.js** - Ethereum library (implicit)
+
+### Decentralized Protocol
+- **Nostr Protocol** - Censorship-resistant social protocol
+- **WebSocket Relays** - Real-time event distribution
+- **Cryptographic Keys** - Ed25519 key pairs for identity
+- **Event Signing** - Client-side message authentication
+
+## Project Structure
 
 ```
-arcnet-nostr-dapp/
 ├── app/
-│   ├── globals.css      # Estilos globais
-│   ├── layout.tsx       # Layout principal
-│   └── page.tsx         # Página inicial
+│   ├── page.tsx                    # Homepage with features
+│   ├── layout.tsx                  # Root layout with providers
+│   ├── globals.css                 # Global styles with Arc branding
+│   ├── feed/page.tsx               # Social feed with Nostr events
+│   ├── relays/page.tsx             # Relay management
+│   ├── users/page.tsx              # User discovery
+│   ├── docs/page.tsx               # Arc Network documentation
+│   └── profile/page.tsx            # User profile editor
 ├── components/
-│   ├── Sidebar.tsx      # Barra lateral esquerda
-│   ├── PostComposer.tsx # Componente de criação de posts
-│   ├── Feed.tsx         # Feed de publicações
-│   └── RightSidebar.tsx # Barra lateral direita
+│   ├── navbar.tsx                  # Navigation with wallet status
+│   ├── footer.tsx                  # Footer with Arc links
+│   ├── arc-logo.tsx                # Arc Network branding
+│   ├── compose-note.tsx            # Publish Nostr notes
+│   ├── note-card.tsx               # Display Nostr events
+│   ├── identity-setup.tsx          # Nostr key generation
+│   └── ui/                         # shadcn component library
+├── contexts/
+│   ├── web3-context.tsx            # Arc wallet state
+│   └── nostr-context.tsx           # Nostr client state
 ├── lib/
-│   ├── config.ts        # Configurações (RPC, Relay, etc)
-│   ├── ipfs.ts          # Funções de IPFS (mock)
-│   ├── wallet.ts        # Funções de carteira
-│   ├── events.ts        # Schema e funções de eventos
-│   └── relay.ts         # Classe MockRelay
-├── types/
-│   └── window.d.ts      # Tipos TypeScript para window.ethereum
-└── package.json
+│   ├── web3-config.ts              # Arc Network configuration
+│   ├── web3-utils.ts               # Wallet helpers
+│   ├── nostr-types.ts              # Nostr type definitions
+│   ├── nostr-client.ts             # Relay connection manager
+│   └── nostr-crypto.ts             # Key generation & signing
+└── public/
+    └── images/                     # Static assets
 ```
 
-## 🔧 Configuração
+## Getting Started
 
-### Configurar Rede Arcnet Testnet
+### Prerequisites
+- Node.js 18+ installed
+- MetaMask browser extension
+- Basic understanding of Web3 and decentralized protocols
 
-O dApp está configurado para conectar automaticamente à rede Arcnet testnet da Circle. 
+### Installation
 
-**⚠️ IMPORTANTE**: Você precisa atualizar os valores oficiais da rede em `lib/network.ts`:
+1. Clone or download the project
 
-1. **Obtenha as informações oficiais**:
-   - Visite https://www.circle.com/en/arc
-   - Registre-se para acesso à testnet
-   - Obtenha o Chain ID e RPC URL oficiais
+2. Install dependencies:
+```bash
+npm install
+```
 
-2. **Atualize `lib/network.ts`**:
-   ```typescript
-   export const ARCNET_TESTNET: NetworkConfig = {
-     chainId: '0x...', // Chain ID oficial
-     chainName: 'Circle Arc Testnet',
-     nativeCurrency: {
-       name: 'USDC',
-       symbol: 'USDC',
-       decimals: 6,
-     },
-     rpcUrls: ['https://rpc-oficial.arc.xyz'],
-     blockExplorerUrls: ['https://explorer-oficial.arc.xyz'],
-   };
-   ```
+3. Run the development server:
+```bash
+npm run dev
+```
 
-3. **O dApp irá**:
-   - Adicionar automaticamente a rede ao MetaMask ao conectar
-   - Trocar para a rede Arcnet testnet automaticamente
-   - Mostrar status visual da rede conectada
+4. Open [http://localhost:3000](http://localhost:3000)
 
-Consulte `ARCNET_SETUP.md` para instruções detalhadas.
+### Connect to Arc Network
 
-### Configurar Relay WebSocket
+#### Network Configuration:
+- **Network Name**: Arc Testnet
+- **Chain ID**: 5042002
+- **RPC URL**: https://rpc.testnet.arc.network
+- **Currency Symbol**: USDC
+- **Block Explorer**: https://testnet.arcscan.app
+- **Faucet**: https://faucet.circle.com
 
-Edite `lib/config.ts` ou use variáveis de ambiente:
+The app will automatically prompt you to add and switch to the Arc Network when you connect your wallet.
+
+#### Get Testnet USDC:
+1. Visit the [Arc Faucet](https://faucet.circle.com)
+2. Select "Arc Testnet"
+3. Enter your wallet address
+4. Request testnet USDC for gas fees
+
+### Nostr Setup
+
+1. **Generate Identity**: Click "Create New Identity" to generate a new Nostr key pair
+2. **Save Your Keys**: Securely store your private key (nsec) - it cannot be recovered
+3. **Connect to Relays**: The app automatically connects to popular Nostr relays
+4. **Publish Notes**: Start sharing your thoughts on the decentralized social network
+
+## Key Concepts
+
+### Nostr Protocol
+
+Nostr (Notes and Other Stuff Transmitted by Relays) is a simple, open protocol for decentralized social networking:
+
+- **Decentralized**: No central server or authority
+- **Censorship-Resistant**: No one can ban or silence you
+- **Portable Identity**: Your identity works across all Nostr apps
+- **Client-Side Signing**: You control your keys and content
+- **Relay Network**: Multiple independent servers distribute messages
+
+### Arc Network Features
+
+Arc is purpose-built for real-world economic activity:
+
+**Stable Fee Design**
+- Gas paid in USDC instead of volatile tokens
+- Predictable transaction costs in fiat terms
+- Transparent fee structure
+
+**Deterministic Finality**
+- Sub-second transaction finality
+- No probabilistic confirmations
+- Instant settlement for applications
+
+**EVM Compatibility**
+- Deploy existing Solidity contracts
+- Use familiar development tools
+- Access Ethereum ecosystem libraries
+
+**Use Cases**
+- Onchain credit and lending
+- Capital markets settlement
+- Stablecoin FX and swaps
+- Cross-border payments
+- Agentic commerce
+
+## Architecture
+
+### Web3 Integration
+
+The app uses React Context to manage Web3 state:
 
 ```typescript
-export const MOCK_RELAY_WS = process.env.NEXT_PUBLIC_RELAY_WS || 'wss://mock-relay.example/ws';
+const { account, connectWallet, isConnected } = useWeb3()
 ```
 
-### Implementar IPFS Real (Opcional)
+Features:
+- Automatic network detection and switching
+- Persistent connection across page reloads
+- Account change detection
+- Identicon avatar generation
 
-Para usar IPFS real (ex: Pinata), edite `lib/ipfs.ts`:
+### Nostr Integration
 
-1. Obtenha suas chaves da API do Pinata
-2. Descomente e configure o código de upload real
-3. Adicione as variáveis de ambiente no `.env.local`:
+The Nostr client manages relay connections and event handling:
 
-```env
-NEXT_PUBLIC_PINATA_API_KEY=your_api_key
-NEXT_PUBLIC_PINATA_SECRET_KEY=your_secret_key
+```typescript
+const { identity, publishNote, subscribeToFeed } = useNostr()
 ```
 
-## 🎯 Funcionalidades
+Features:
+- Multi-relay connection pooling
+- Event subscription and filtering
+- Client-side event signing
+- Key management and storage
 
-- ✅ Conexão com carteira Ethereum (MetaMask)
-- ✅ **Conexão automática com Arcnet testnet da Circle**
-- ✅ **Detecção e troca automática de rede**
-- ✅ **Indicador visual de status da rede**
-- ✅ Criação de posts assinados
-- ✅ Feed de publicações em tempo real
-- ✅ Sistema de likes (reactions)
-- ✅ Armazenamento local (localStorage)
-- ✅ Interface responsiva e moderna
-- ✅ Animações suaves com Framer Motion
+## Design Philosophy
 
-## 🔮 Próximos Passos
+### Visual Design
+- **Dark Theme**: Professional Web3 aesthetic with Arc branding
+- **Purple/Blue Gradient**: Primary colors reflecting Arc identity
+- **Glassmorphism**: Modern translucent card effects
+- **Accessibility**: WCAG 2.1 AA compliant
 
-Para produção, você precisará:
+### User Experience
+- **No Account Required**: Just connect wallet or generate Nostr keys
+- **Progressive Enhancement**: Works without wallet connection
+- **Mobile First**: Responsive design for all devices
+- **Performance**: Optimized bundle size and lazy loading
 
-1. **✅ Integrar com Arcnet** - ✅ CONCLUÍDO - Configuração de rede implementada
-2. **Atualizar valores oficiais** - Substituir valores placeholder em `lib/network.ts` com dados oficiais da Circle
-3. **Implementar IPFS real** - Substituir mocks por upload real
-4. **Configurar Relay WebSocket** - Implementar servidor relay real
-5. **Smart Contracts** - Opcionalmente, criar contratos para registro on-chain
-6. **Autenticação** - Melhorar sistema de autenticação
-7. **Criptografia** - Adicionar criptografia end-to-end
-8. **Testar com USDC** - Verificar funcionamento com USDC como token de gás
+### Security
+- **Client-Side Keys**: Private keys never leave the browser
+- **No Backend**: Fully decentralized architecture
+- **Content Signing**: All messages cryptographically signed
+- **Relay Independence**: No single point of failure
 
-## 📝 Scripts Disponíveis
+## Resources
 
-- `npm run dev` - Inicia servidor de desenvolvimento
-- `npm run build` - Cria build de produção
-- `npm run start` - Inicia servidor de produção
-- `npm run lint` - Executa linter
+### Arc Network
+- [Official Documentation](https://docs.arc.network)
+- [Arc Testnet Explorer](https://testnet.arcscan.app)
+- [Testnet Faucet](https://faucet.circle.com)
+- [Arc Website](https://arc.network)
 
-## 🤝 Contribuindo
+### Nostr Protocol
+- [Nostr Protocol Spec](https://github.com/nostr-protocol/nostr)
+- [Nostr.how - Learn Nostr](https://nostr.how)
+- [Nostr Clients](https://nostr.com)
+- [Relay List](https://nostr.watch)
 
-Este é um projeto de exemplo/scaffold. Sinta-se livre para modificar e adaptar conforme suas necessidades.
+## Future Enhancements
 
-## 📄 Licença
+- [ ] Direct encrypted messaging between users
+- [ ] On-chain identity verification via Arc smart contracts
+- [ ] IPFS integration for media attachments
+- [ ] Lightning Network integration for micropayments
+- [ ] Advanced relay selection algorithms
+- [ ] Content moderation preferences
+- [ ] Follow/follower graphs
+- [ ] Trending topics and discovery
+- [ ] Profile customization and badges
+- [ ] Mobile app (React Native)
 
-Este projeto é fornecido como está, para fins educacionais e de desenvolvimento.
+## Contributing
 
-## ⚠️ Nota Importante
+Contributions are welcome! To contribute:
 
-Este projeto usa funções **MOCK** para demonstração. Antes de usar em produção, você deve:
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-- Substituir todas as funções mock por implementações reais
-- Configurar endpoints reais de RPC e Relay
-- Implementar upload real para IPFS
-- Adicionar tratamento de erros robusto
-- Implementar testes
-- Adicionar validação de dados
+## License
+
+MIT License - Feel free to use this as a template for your own decentralized social applications.
+
+## Support
+
+- **Documentation**: See `/docs` page in the app
+- **Issues**: Open a GitHub issue
+- **Community**: Join the Arc Network community
 
 ---
 
-Desenvolvido com ❤️ para a comunidade Web3
+Built with Next.js 16, React 19, Nostr Protocol, and Arc Network
 
+**Chain ID**: 5042002 | **Gas Token**: USDC | **Protocol**: Nostr

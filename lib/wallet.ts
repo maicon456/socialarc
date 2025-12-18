@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { switchToArcnet, isArcnetNetwork, ARCNET_TESTNET } from './network';
+import { EventPayload } from './events';
 
 /**
  * Sign event payload with Ethereum wallet
@@ -9,14 +10,51 @@ import { switchToArcnet, isArcnetNetwork, ARCNET_TESTNET } from './network';
 export async function signEventWithEthereumMessage(
   provider: ethers.BrowserProvider,
   address: string,
-  payload: Record<string, any>
+  payload: EventPayload
 ): Promise<string> {
   const signer = await provider.getSigner();
-  const message = JSON.stringify(payload);
+  const message = JSON.stringify(payload, Object.keys(payload).sort());
   const sig = await signer.signMessage(
     '\x19Ethereum Signed Message:\n' + message.length + message
   );
   return sig;
+}
+
+/**
+ * Verify event signature
+ */
+export async function verifyEventSignature(
+  address: string,
+  payload: EventPayload,
+  signature: string
+): Promise<boolean> {
+  try {
+    const message = JSON.stringify(payload, Object.keys(payload).sort());
+    const recoveredAddress = ethers.verifyMessage(
+      '\x19Ethereum Signed Message:\n' + message.length + message,
+      signature
+    );
+    return recoveredAddress.toLowerCase() === address.toLowerCase();
+  } catch (error) {
+    console.error('Error verifying signature:', error);
+    return false;
+  }
+}
+
+/**
+ * Get balance of connected wallet
+ */
+export async function getWalletBalance(
+  provider: ethers.BrowserProvider,
+  address: string
+): Promise<string> {
+  try {
+    const balance = await provider.getBalance(address);
+    return ethers.formatEther(balance);
+  } catch (error) {
+    console.error('Error getting balance:', error);
+    return '0';
+  }
 }
 
 /**

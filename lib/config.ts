@@ -1,6 +1,6 @@
-// Arcnet Configuration - Circle Arc Testnet
-// Update RPC URL with official Circle Arc testnet endpoint
-export const ARCNET_RPC = process.env.NEXT_PUBLIC_ARCNET_RPC || 'https://testnet.arc.xyz/rpc';
+// Arc Network Configuration
+// Official Arc Testnet - https://docs.arc.network
+export const ARCNET_RPC = process.env.NEXT_PUBLIC_ARCNET_RPC || 'https://rpc.testnet.arc.network';
 export const MOCK_RELAY_WS = process.env.NEXT_PUBLIC_RELAY_WS || 'wss://mock-relay.example/ws';
 
 // IPFS Configuration (when implementing real IPFS)

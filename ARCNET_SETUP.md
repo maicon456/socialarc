@@ -1,31 +1,32 @@
-# Configuração da Rede Arcnet Testnet
+# Configuração da Rede Arc Testnet
 
-Este documento explica como configurar a conexão com a rede Arcnet testnet da Circle.
+Este documento explica como configurar a conexão com a rede Arc testnet oficial.
 
-## 🔗 Informações da Rede
+## 🔗 Informações da Rede (Valores Oficiais)
 
-### Configuração Atual (Atualizar com valores oficiais)
+### Configuração Oficial da Arc Testnet
 
-- **Nome da Rede**: Circle Arc Testnet
-- **Chain ID**: `0x1A4` (420 em decimal) - **ATUALIZAR COM VALOR OFICIAL**
-- **Moeda Nativa**: USDC (6 decimais)
-- **RPC URL**: `https://testnet.arc.xyz/rpc` - **ATUALIZAR COM URL OFICIAL**
-- **Block Explorer**: `https://testnet-explorer.arc.xyz` - **ATUALIZAR COM URL OFICIAL**
+- **Nome da Rede**: Arc Testnet
+- **Chain ID**: `0x4D0A2` (5042002 em decimal)
+- **Moeda Nativa**: USDC
+- **Decimais**: 18 (USDC como token nativo para gas)
+- **RPC URL**: `https://rpc.testnet.arc.network`
+- **Block Explorer**: `https://testnet.arcscan.app`
+- **Faucet**: `https://faucet.circle.com`
 
-## 📝 Como Obter Informações Oficiais
+**Fonte**: [Arc Network Documentation](https://docs.arc.network/arc/references/connect-to-arc)
 
-1. **Visite a documentação oficial da Circle Arc**:
-   - Site: https://www.circle.com/en/arc
-   - Portal de desenvolvedores: https://developers.circle.com/arc
+## 📝 Documentação Oficial
 
-2. **Registre-se para acesso à testnet**:
-   - Obtenha credenciais de acesso
-   - Receba informações sobre RPC endpoints
-   - Obtenha o Chain ID oficial
+1. **Documentação da Arc Network**:
+   - Site oficial: https://arc.network
+   - Documentação: https://docs.arc.network
+   - Connect to Arc: https://docs.arc.network/arc/references/connect-to-arc
 
-3. **Atualize os arquivos de configuração**:
-   - `lib/network.ts` - Atualize `ARCNET_TESTNET` com valores oficiais
-   - `lib/config.ts` - Atualize `ARCNET_RPC` se necessário
+2. **Recursos Úteis**:
+   - Faucet: https://faucet.circle.com (para obter USDC de teste)
+   - Block Explorer: https://testnet.arcscan.app
+   - Gas and Fees: https://docs.arc.network/arc/references/gas-and-fees
 
 ## 🔧 Configuração Manual
 
@@ -35,18 +36,18 @@ Edite o arquivo `lib/network.ts` e atualize os valores:
 
 ```typescript
 export const ARCNET_TESTNET: NetworkConfig = {
-  chainId: '0x...', // Chain ID oficial em hex
-  chainName: 'Circle Arc Testnet',
+  chainId: '0x4D0A2', // 5042002 em decimal - Chain ID oficial
+  chainName: 'Arc Testnet',
   nativeCurrency: {
     name: 'USDC',
     symbol: 'USDC',
-    decimals: 6,
+    decimals: 18, // USDC no Arc usa 18 decimais (token nativo para gas)
   },
   rpcUrls: [
-    'https://rpc-url-oficial.arc.xyz', // RPC oficial
+    'https://rpc.testnet.arc.network', // RPC oficial
   ],
   blockExplorerUrls: [
-    'https://explorer-oficial.arc.xyz', // Explorer oficial
+    'https://testnet.arcscan.app', // Explorer oficial
   ],
 };
 ```
@@ -56,7 +57,7 @@ export const ARCNET_TESTNET: NetworkConfig = {
 Crie um arquivo `.env.local`:
 
 ```env
-NEXT_PUBLIC_ARCNET_RPC=https://rpc-url-oficial.arc.xyz
+NEXT_PUBLIC_ARCNET_RPC=https://rpc.testnet.arc.network
 NEXT_PUBLIC_RELAY_WS=wss://seu-relay.com/ws
 ```
 
@@ -95,15 +96,22 @@ Se preferir adicionar manualmente:
 
 ## ⚠️ Notas Importantes
 
-- **USDC como Gas**: A Arcnet usa USDC como token nativo para taxas de transação
+- **USDC como Gas**: A Arc usa USDC como token nativo para taxas de transação (18 decimais)
+- **Gas Fees**: Base fee mínimo de ~160 Gwei (~$0.01 por transação na testnet)
+- **Finalidade Determinística**: Transações são finalizadas em menos de 1 segundo
 - **Testnet**: Esta é uma rede de testes - não use tokens reais
+- **Faucet**: Obtenha USDC de teste em https://faucet.circle.com
 - **Atualizações**: Verifique regularmente a documentação oficial para atualizações
 
 ## 🔗 Links Úteis
 
-- [Circle Arc Website](https://www.circle.com/en/arc)
-- [Circle Developers Portal](https://developers.circle.com/arc)
-- [Documentação Arcnet](https://docs.arc.xyz) (quando disponível)
+- [Arc Network Website](https://arc.network)
+- [Arc Documentation](https://docs.arc.network)
+- [Connect to Arc](https://docs.arc.network/arc/references/connect-to-arc)
+- [Gas and Fees](https://docs.arc.network/arc/references/gas-and-fees)
+- [Deploy on Arc](https://docs.arc.network/arc/tutorials/deploy-on-arc)
+- [Block Explorer](https://testnet.arcscan.app)
+- [Faucet](https://faucet.circle.com)
 
 ## 📞 Suporte
 
@@ -116,7 +124,7 @@ Se encontrar problemas:
 
 ---
 
-**Última atualização**: Aguardando informações oficiais da Circle sobre RPC endpoints e Chain ID.
+**Última atualização**: Configurado com valores oficiais da Arc Network (2024).
 
 
 
