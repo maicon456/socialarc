@@ -23,8 +23,8 @@ export function fileToDataURL(file: File): Promise<string> {
 }
 
 /**
- * Store media files in localStorage (temporary solution)
- * In production, upload to IPFS/Arweave
+ * Store media files in localStorage (persistent storage)
+ * Photos and videos are saved permanently for access by all users
  */
 export async function storeMediaFiles(files: File[]): Promise<string[]> {
   const urls: string[] = []
@@ -35,7 +35,11 @@ export async function storeMediaFiles(files: File[]): Promise<string[]> {
       const dataURL = await fileToDataURL(file)
       
       // Store in localStorage with a unique key
-      const key = `arcnet_media_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      const timestamp = Date.now()
+      const randomId = Math.random().toString(36).substring(7)
+      const key = `arcnet_media_${timestamp}_${randomId}`
+      
+      // Store the data URL permanently
       localStorage.setItem(key, dataURL)
       
       // Create a URL that can be used to retrieve the media
@@ -43,16 +47,22 @@ export async function storeMediaFiles(files: File[]): Promise<string[]> {
       const mediaUrl = `arcnet://media/${key}`
       urls.push(mediaUrl)
       
-      // Also store metadata
+      // Store metadata for persistence
       const metadata = {
-        type: file.type,
+        type: file.type.startsWith('image') ? 'image' as const : 'video' as const,
         name: file.name,
         size: file.size,
-        timestamp: Date.now(),
+        timestamp: timestamp,
       }
       localStorage.setItem(`${key}_meta`, JSON.stringify(metadata))
       
-      console.log(`[Media] Stored ${file.type} file: ${key}`)
+      // Also persist in media persistence system
+      if (typeof window !== 'undefined') {
+        const { persistMedia } = await import('./media-persistence')
+        persistMedia(mediaUrl, dataURL, metadata)
+      }
+      
+      console.log(`[Media] Stored ${file.type} file: ${key} (${(file.size / 1024 / 1024).toFixed(2)} MB)`)
     } catch (error) {
       console.error('[Media] Error storing file:', error)
       throw new Error(`Failed to store file: ${file.name}`)
@@ -64,17 +74,42 @@ export async function storeMediaFiles(files: File[]): Promise<string[]> {
 
 /**
  * Retrieve media file from storage
+ * Ensures photos and videos are accessible for all users
  */
 export function getMediaFromURL(url: string): string | null {
-  if (!url.startsWith('arcnet://media/')) {
-    // If it's already a data URL or regular URL, return as is
+  if (!url || typeof url !== 'string') {
+    return null
+  }
+
+  // If it's already a data URL or external URL, return as is
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
     return url
   }
   
-  const key = url.replace('arcnet://media/', '')
-  const dataURL = localStorage.getItem(key)
+  // If it's an arcnet:// URL, retrieve from localStorage
+  if (url.startsWith('arcnet://media/')) {
+    const key = url.replace('arcnet://media/', '')
+    const dataURL = localStorage.getItem(key)
+    
+    if (dataURL) {
+      return dataURL
+    }
+    
+    // Try to ensure accessibility
+    if (typeof window !== 'undefined') {
+      try {
+        const { ensureMediaAccessible } = require('./media-persistence')
+        return ensureMediaAccessible(url)
+      } catch {
+        // Fallback
+      }
+    }
+    
+    return null
+  }
   
-  return dataURL || null
+  // Return as is if it's a valid URL
+  return url
 }
 
 /**

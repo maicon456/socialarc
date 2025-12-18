@@ -276,8 +276,26 @@ export async function getAllPostsFromChain(): Promise<OnChainPost[]> {
         // Content is stored directly in contentHash field
         // Media URLs are stored separately in mediaUrls array
         // This ensures ALL users can see the full post content
-        const displayContent = post.contentHash || ""
+        let displayContent = post.contentHash || ""
         const displayMediaUrls = post.mediaUrls || []
+        
+        // Filter out profile posts from the feed (they should only appear in profile pages)
+        if (post.contentType === "profile") {
+          return null // Don't show profile posts in the main feed
+        }
+        
+        // If content looks like JSON (profile data), don't show it in feed
+        if (displayContent.trim().startsWith('{') && displayContent.trim().endsWith('}')) {
+          try {
+            const parsed = JSON.parse(displayContent)
+            // If it's a profile JSON (has name, avatarUrl, bio), use empty content
+            if (parsed.name || parsed.avatarUrl || parsed.bio) {
+              displayContent = "" // Don't show profile JSON in feed
+            }
+          } catch {
+            // Not valid JSON, keep original content
+          }
+        }
         
         return {
           id: postId.toString(),

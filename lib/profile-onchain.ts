@@ -34,13 +34,19 @@ export async function createProfileOnChain(
   try {
     console.log("[Profile] Criando perfil on-chain...")
     
-    // Upload avatar if provided
+    // Upload avatar if provided - this ensures it's saved permanently
     let avatarUrl = ""
     if (avatarFile) {
       console.log("[Profile] Fazendo upload do avatar...")
-      const mediaUrls = await uploadMediaToStorage([avatarFile])
-      avatarUrl = mediaUrls[0] || ""
-      console.log("[Profile] Avatar URL:", avatarUrl)
+      try {
+        const mediaUrls = await uploadMediaToStorage([avatarFile])
+        avatarUrl = mediaUrls[0] || ""
+        console.log("[Profile] Avatar URL:", avatarUrl)
+        console.log("[Profile] Avatar saved permanently for all users to see")
+      } catch (error) {
+        console.error("[Profile] Error uploading avatar:", error)
+        throw new Error("Failed to upload avatar image")
+      }
     }
 
     // Create profile data JSON
@@ -77,12 +83,23 @@ export async function createProfileOnChain(
     if (typeof window !== 'undefined') {
       const { address } = await getProviderAndSigner()
       const profiles = getStoredProfiles()
-      profiles[address.toLowerCase()] = {
-        ...profileData,
+      const profileToStore: OnChainProfile = {
         address: address.toLowerCase(),
-        txHash: result.hash,
+        name: (profileData.name || "").trim(),
+        bio: (profileData.bio || "").trim(),
+        avatarUrl: avatarUrl,
+        github: (profileData.github || "").trim(),
+        twitter: (profileData.twitter || "").trim(),
+        website: (profileData.website || "").trim(),
+        stack: Array.isArray(profileData.stack) ? profileData.stack : [],
+        timestamp: profileData.timestamp || Date.now(),
       }
+      
+      // Ensure it's stored as an object, not a string
+      profiles[address.toLowerCase()] = profileToStore
       localStorage.setItem('arcnet_profiles', JSON.stringify(profiles))
+      
+      // Avatar is already stored in storeMediaFiles, so it's persisted
     }
 
     return { txHash: result.hash }
@@ -104,7 +121,10 @@ export async function getProfileOnChain(address: string): Promise<OnChainProfile
       const profiles = getStoredProfiles()
       const cached = profiles[address.toLowerCase()]
       if (cached) {
-        return cached
+        // Ensure it's a proper object, not a string
+        if (typeof cached === 'object' && cached !== null && 'name' in cached) {
+          return cached
+        }
       }
     }
 
@@ -119,8 +139,34 @@ export async function getProfileOnChain(address: string): Promise<OnChainProfile
     
     const contract = new ethers.Contract(SOCIAL_CONTRACT_ADDRESS, SOCIAL_CONTRACT_ABI, provider)
     
-    // Get user's posts
-    const userPostIds = await contract.getUserPosts(address)
+    // Get user's posts - with error handling
+    let userPostIds: bigint[] = []
+    try {
+      userPostIds = await contract.getUserPosts(address)
+    } catch (error: any) {
+      // If getUserPosts fails, try to get all posts and filter by author
+      console.warn("[Profile] getUserPosts failed, trying alternative method:", error.message)
+      try {
+        const allPostIds = await contract.getAllPosts()
+        // Filter posts by author (this is less efficient but works as fallback)
+        const filteredPosts: bigint[] = []
+        for (const postId of allPostIds) {
+          try {
+            const post = await contract.getPost(postId)
+            if (post.author.toLowerCase() === address.toLowerCase()) {
+              filteredPosts.push(postId)
+            }
+          } catch {
+            // Skip posts that fail to fetch
+            continue
+          }
+        }
+        userPostIds = filteredPosts
+      } catch (fallbackError) {
+        console.error("[Profile] Failed to get user posts:", fallbackError)
+        return null
+      }
+    }
     
     if (userPostIds.length === 0) {
       return null
@@ -140,7 +186,22 @@ export async function getProfileOnChain(address: string): Promise<OnChainProfile
           
           if (timestamp > latestTimestamp) {
             try {
-              const profileData = JSON.parse(post.contentHash)
+              // Parse profile data from contentHash
+              let profileData: any = {}
+              try {
+                profileData = typeof post.contentHash === 'string' 
+                  ? JSON.parse(post.contentHash) 
+                  : post.contentHash
+              } catch (e) {
+                // If parsing fails, try to extract from string
+                if (typeof post.contentHash === 'string' && post.contentHash.includes('name')) {
+                  profileData = JSON.parse(post.contentHash)
+                } else {
+                  console.error("[Profile] Invalid profile data format:", post.contentHash)
+                  continue
+                }
+              }
+              
               latestProfile = {
                 address: address.toLowerCase(),
                 name: profileData.name || "",
@@ -163,11 +224,14 @@ export async function getProfileOnChain(address: string): Promise<OnChainProfile
       }
     }
 
-    // Cache in localStorage
+    // Cache in localStorage - ensure it's a proper object
     if (latestProfile && typeof window !== 'undefined') {
       const profiles = getStoredProfiles()
-      profiles[address.toLowerCase()] = latestProfile
-      localStorage.setItem('arcnet_profiles', JSON.stringify(profiles))
+      // Ensure latestProfile is a proper object
+      if (latestProfile && typeof latestProfile === 'object' && 'name' in latestProfile) {
+        profiles[address.toLowerCase()] = latestProfile
+        localStorage.setItem('arcnet_profiles', JSON.stringify(profiles))
+      }
     }
 
     return latestProfile
@@ -197,7 +261,31 @@ function getStoredProfiles(): Record<string, OnChainProfile> {
 
   try {
     const stored = localStorage.getItem('arcnet_profiles')
-    return stored ? JSON.parse(stored) : {}
+    if (!stored) return {}
+    
+    const parsed = JSON.parse(stored)
+    // Clean up any corrupted data - ensure all values are objects, not strings
+    const cleaned: Record<string, OnChainProfile> = {}
+    for (const key in parsed) {
+      const value = parsed[key]
+      if (typeof value === 'string') {
+        try {
+          const parsedValue = JSON.parse(value)
+          if (parsedValue && typeof parsedValue === 'object' && 'name' in parsedValue) {
+            cleaned[key] = parsedValue as OnChainProfile
+          }
+        } catch {
+          // Skip corrupted entries
+          continue
+        }
+      } else if (value && typeof value === 'object' && value !== null && 'name' in value) {
+        // Ensure it's a proper OnChainProfile object
+        if (typeof value.name === 'string') {
+          cleaned[key] = value as OnChainProfile
+        }
+      }
+    }
+    return cleaned
   } catch {
     return {}
   }

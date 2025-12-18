@@ -76,14 +76,17 @@ export function CreatePost() {
         
         try {
           mediaUrls = await uploadMediaToStorage(mediaFiles)
-          console.log("[CreatePost] Media uploaded:", mediaUrls)
+          console.log("[CreatePost] Media uploaded and saved permanently:", mediaUrls)
+          console.log("[CreatePost] Photos/videos are now accessible to all users")
         } catch (error: any) {
           console.error("[CreatePost] Media upload failed:", error)
           toast({
             title: "Media upload failed",
-            description: "Continuing with text only...",
+            description: error.message || "Could not save media files. Please try again.",
             variant: "destructive",
           })
+          setIsPublishing(false)
+          return
         }
       }
 

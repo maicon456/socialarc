@@ -12,10 +12,13 @@ import { getTransactionExplorerUrl, formatTransactionHash } from "@/lib/blockcha
 import { getMediaFromURL } from "@/lib/media-storage"
 import { followUser, unfollowUser, isFollowing } from "@/lib/follow-system"
 import { sendPrivateMessage } from "@/lib/private-messages"
-import { Heart, MessageCircle, Share2, Loader2, ExternalLink, Play, UserPlus, UserMinus, Send, Check, ArrowRight } from "lucide-react"
+import { getProfileOnChain, type OnChainProfile } from "@/lib/profile-onchain"
+import { CommentItem } from "./comment-item"
+import { Heart, MessageCircle, Share2, Loader2, ExternalLink, Play, UserPlus, UserMinus, Send, Check, ArrowRight, Repeat2 } from "lucide-react"
 import type { OnChainPost } from "@/lib/blockchain-social"
 import { formatDistanceToNow } from "date-fns"
 import { ARC_LINKS } from "@/lib/web3-config"
+import { createPostOnChain } from "@/lib/blockchain-social"
 
 interface PostCardProps {
   post: OnChainPost
@@ -27,11 +30,14 @@ export function PostCard({ post }: PostCardProps) {
   const [comments, setComments] = useState(post.comments)
   const [shares, setShares] = useState(post.shares)
   const [commentText, setCommentText] = useState("")
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState("")
   const [showComments, setShowComments] = useState(false)
   const [postComments, setPostComments] = useState<OnChainComment[]>([])
   const [isFollowingUser, setIsFollowingUser] = useState(false)
   const [isLoadingComments, setIsLoadingComments] = useState(false)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
+  const [authorProfile, setAuthorProfile] = useState<OnChainProfile | null>(null)
   const { account, isConnected } = useWeb3()
   const { toast } = useToast()
 
@@ -41,6 +47,31 @@ export function PostCard({ post }: PostCardProps) {
       hasUserLikedPost(post.id, account).then(setIsLiked).catch(console.error)
     }
   }, [account, post.id])
+
+  // Load author profile
+  useEffect(() => {
+    if (post.author) {
+      getProfileOnChain(post.author)
+        .then((profile) => {
+          // Ensure profile is a proper object, not a string
+          if (profile && typeof profile === 'object' && 'name' in profile) {
+            setAuthorProfile(profile)
+          } else if (profile && typeof profile === 'string') {
+            try {
+              const parsed = JSON.parse(profile)
+              if (parsed && typeof parsed === 'object' && 'name' in parsed) {
+                setAuthorProfile(parsed)
+              }
+            } catch {
+              setAuthorProfile(null)
+            }
+          } else {
+            setAuthorProfile(null)
+          }
+        })
+        .catch(() => setAuthorProfile(null))
+    }
+  }, [post.author])
 
   // Check if user is following the post author
   useEffect(() => {
@@ -69,7 +100,25 @@ export function PostCard({ post }: PostCardProps) {
   }
 
   const timestamp = new Date(post.timestamp)
-  const shortAddress = `${post.author.slice(0, 6)}...${post.author.slice(-4)}`
+  
+  // Get author name - ensure it's a string, not JSON
+  let authorName = `${post.author.slice(0, 6)}...${post.author.slice(-4)}`
+  if (authorProfile && typeof authorProfile === 'object' && authorProfile !== null) {
+    if (typeof authorProfile.name === 'string' && authorProfile.name.trim()) {
+      authorName = authorProfile.name.trim()
+    }
+  }
+  
+  // Get author avatar - convert arcnet:// URLs to data URLs
+  let authorAvatar = `https://api.dicebear.com/7.x/shapes/svg?seed=${post.author}`
+  if (authorProfile && typeof authorProfile === 'object' && authorProfile !== null) {
+    const avatarUrl = authorProfile.avatarUrl || ''
+    if (avatarUrl && typeof avatarUrl === 'string') {
+      // Convert arcnet:// URLs to data URLs
+      const convertedUrl = getMediaFromURL(avatarUrl)
+      authorAvatar = convertedUrl || avatarUrl || authorAvatar
+    }
+  }
 
   async function handleLike() {
     if (!isConnected) {
@@ -163,6 +212,7 @@ export function PostCard({ post }: PostCardProps) {
       const txHash = await commentOnChain(post.id, commentText)
       setComments((prev) => prev + 1)
       setCommentText("")
+      await loadComments()
 
       toast({
         title: "Comment added!",
@@ -193,6 +243,51 @@ export function PostCard({ post }: PostCardProps) {
     }
   }
 
+  async function handleReply(commentId: string, replyText: string) {
+    if (!replyText.trim() || !isConnected) return
+
+    setIsProcessing("reply")
+
+    try {
+      toast({
+        title: "Adding reply",
+        description: `Transaction fee: ~${GAS_FEES.comment} USDC`,
+      })
+
+      const txHash = await commentOnChain(post.id, replyText)
+      setComments((prev) => prev + 1)
+      setReplyingTo(null)
+      setReplyText("")
+      await loadComments()
+
+      toast({
+        title: "Reply added!",
+        description: (
+          <div className="space-y-1">
+            <a
+              href={getTransactionExplorerUrl(txHash)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-primary underline text-sm"
+            >
+              View transaction {formatTransactionHash(txHash)} <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        ),
+      })
+      
+      window.dispatchEvent(new Event('posts-refresh'))
+    } catch (error: any) {
+      toast({
+        title: "Transaction failed",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(null)
+    }
+  }
+
   async function handleShare() {
     if (!isConnected) {
       toast({
@@ -207,33 +302,41 @@ export function PostCard({ post }: PostCardProps) {
 
     try {
       toast({
-        title: "Sharing post",
-        description: `Transaction fee: ~${GAS_FEES.share} USDC`,
+        title: "Reposting to your timeline",
+        description: `Creating repost on-chain (~${GAS_FEES.createPost} USDC)`,
       })
 
-      const txHash = await sharePostOnChain(post.id)
+      // Create a repost - new post that references the original
+      const repostContent = `🔁 Reposted from ${authorProfile?.name || `${post.author.slice(0, 6)}...${post.author.slice(-4)}`}\n\n${post.content}`
+      
+      const { txHash } = await createPostOnChain(
+        repostContent,
+        post.mediaUrls,
+        post.contentType
+      )
+
+      // Also increment share count
+      await sharePostOnChain(post.id)
       setShares((prev) => prev + 1)
 
       toast({
-        title: "Post shared!",
+        title: "Post reposted!",
         description: (
           <div className="space-y-1">
-          <a
+            <p>Your repost has been added to the timeline</p>
+            <a
               href={getTransactionExplorerUrl(txHash)}
-            target="_blank"
-            rel="noopener noreferrer"
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-1 text-primary underline text-sm"
-          >
+            >
               View transaction {formatTransactionHash(txHash)} <ExternalLink className="h-3 w-3" />
-          </a>
+            </a>
           </div>
         ),
       })
       
-      // Refresh comments
-      await loadComments()
-      
-      // Refresh posts to get updated counts
+      // Refresh posts to show the new repost
       window.dispatchEvent(new Event('posts-refresh'))
     } catch (error: any) {
       toast({
@@ -328,16 +431,18 @@ export function PostCard({ post }: PostCardProps) {
       <div className="p-4">
         <div className="flex gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={`https://api.dicebear.com/7.x/shapes/svg?seed=${post.author}`} />
-            <AvatarFallback>{post.author.slice(0, 2).toUpperCase()}</AvatarFallback>
+            <AvatarImage src={authorAvatar} />
+            <AvatarFallback>
+              {authorProfile?.name ? authorProfile.name.slice(0, 2).toUpperCase() : post.author.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
           </Avatar>
 
           <div className="flex-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div>
-                  <span className="font-semibold">{shortAddress}</span>
-                  <span className="ml-2 text-sm text-muted-foreground">
+                <div className="flex flex-col">
+                  <span className="font-semibold">{authorName}</span>
+                  <span className="text-xs text-muted-foreground">
                     {formatDistanceToNow(timestamp, { addSuffix: true })}
                   </span>
                 </div>
@@ -392,37 +497,87 @@ export function PostCard({ post }: PostCardProps) {
               )}
             </div>
 
-            {post.content && (
-              <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {post.content}
-              </p>
-            )}
+            {post.content && (() => {
+              const content = post.content.trim()
+              // If content looks like JSON object (profile data), don't display it
+              if (content.startsWith('{') && content.endsWith('}')) {
+                try {
+                  const parsed = JSON.parse(content)
+                  // If it's a profile JSON with name/avatarUrl/bio, don't show it
+                  if (parsed.name || parsed.avatarUrl || parsed.bio) {
+                    return null // Don't render profile JSON as content
+                  }
+                } catch {
+                  // Not valid JSON, continue to show
+                }
+              }
+              
+              // Only show content if it's not a profile JSON
+              if (!content.startsWith('{') || !content.endsWith('}')) {
+                return (
+                  <div className="mt-2">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                      {post.content}
+                    </p>
+                  </div>
+                )
+              }
+              return null
+            })()}
 
-            {/* Media - Twitter/X style */}
+            {/* Media - Facebook style */}
             {post.mediaUrls.length > 0 && (
-              <div className={`mt-3 grid gap-2 ${
+              <div className={`mt-3 ${
                 post.mediaUrls.length === 1 
-                  ? 'grid-cols-1' 
+                  ? 'w-full' 
                   : post.mediaUrls.length === 2 
-                    ? 'grid-cols-2' 
-                    : 'grid-cols-2'
+                    ? 'grid grid-cols-2 gap-1' 
+                    : post.mediaUrls.length === 3
+                      ? 'grid grid-cols-2 gap-1'
+                      : 'grid grid-cols-2 gap-1'
               }`}>
                 {post.mediaUrls.map((url, index) => {
-                  const mediaUrl = getMediaFromURL(url) || url
+                  // Ensure media is accessible - try multiple methods
+                  let mediaUrl = getMediaFromURL(url) || url
+                  
+                  // If still not accessible, try to ensure it
+                  if ((!mediaUrl || mediaUrl === url) && typeof window !== 'undefined') {
+                    // Media should already be accessible via getMediaFromURL
+                    // If not, it might not be stored yet - use original URL as fallback
+                    if (!mediaUrl) {
+                      mediaUrl = url
+                    }
+                  }
+                  
                   // Detect video: check contentType, URL, or file extension
                   const isVideo = 
                     post.contentType === "video" || 
                     post.contentType === "mixed" ||
                     url.includes('video') || 
-                    mediaUrl.includes('video') ||
+                    (mediaUrl && mediaUrl.includes('video')) ||
                     url.match(/\.(mp4|webm|ogg|mov|avi)$/i) !== null ||
-                    mediaUrl.match(/\.(mp4|webm|ogg|mov|avi)$/i) !== null
+                    (mediaUrl && mediaUrl.match(/\.(mp4|webm|ogg|mov|avi)$/i) !== null)
+                  
+                  // Facebook style: single image/video takes full width, multiple images in grid
+                  const isSingleMedia = post.mediaUrls.length === 1
+                  const isFirstInGrid = index === 0 && post.mediaUrls.length > 1
+                  const isSecondInGrid = index === 1 && post.mediaUrls.length === 2
                   
                   return (
                     <div 
                       key={index} 
-                      className={`relative overflow-hidden rounded-xl bg-muted ${
-                        post.mediaUrls.length === 1 ? 'max-h-[500px]' : 'h-60'
+                      className={`relative overflow-hidden bg-muted ${
+                        isSingleMedia 
+                          ? 'w-full rounded-lg' 
+                          : 'rounded-lg'
+                      } ${
+                        isSingleMedia 
+                          ? 'max-h-[600px]' 
+                          : post.mediaUrls.length === 2
+                            ? 'h-[300px]'
+                            : post.mediaUrls.length === 3 && index === 0
+                              ? 'row-span-2 h-[600px]'
+                              : 'h-[300px]'
                       }`}
                     >
                       {isVideo ? (
@@ -432,23 +587,22 @@ export function PostCard({ post }: PostCardProps) {
                             className="h-full w-full object-cover" 
                             controls
                             preload="metadata"
+                            playsInline
                           />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <Play className="h-12 w-12 text-white opacity-80" />
-                          </div>
                         </div>
                       ) : (
                         <img 
                           src={mediaUrl || "/placeholder.svg"} 
                           alt={`Post media ${index + 1}`} 
-                          className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                          className="h-full w-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                           onClick={() => {
                             // Open in full screen view
                             window.open(mediaUrl, '_blank')
                           }}
+                          loading="lazy"
                         />
-                    )}
-                  </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -491,7 +645,7 @@ export function PostCard({ post }: PostCardProps) {
                 {isProcessing === "share" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Share2 className="h-4 w-4" />
+                  <Repeat2 className="h-4 w-4" />
                 )}
                 <span className="text-xs">{shares}</span>
               </Button>
@@ -532,25 +686,29 @@ export function PostCard({ post }: PostCardProps) {
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {postComments.map((comment) => {
-                      const commentAuthor = `${comment.commenter.slice(0, 6)}...${comment.commenter.slice(-4)}`
-                      const commentTime = new Date(comment.timestamp)
+                      const isReplying = replyingTo === comment.id
                       
                       return (
-                        <div key={comment.id} className="flex gap-2 p-2 rounded-lg bg-muted/50">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/shapes/svg?seed=${comment.commenter}`} />
-                            <AvatarFallback>{comment.commenter.slice(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm">{commentAuthor}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(commentTime, { addSuffix: true })}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm">{comment.content}</p>
-                          </div>
-                        </div>
+                        <CommentItem
+                          key={comment.id}
+                          comment={comment}
+                          onReply={handleReply}
+                          isReplying={isReplying}
+                          onToggleReply={() => {
+                            if (isReplying) {
+                              setReplyingTo(null)
+                              setReplyText("")
+                            } else {
+                              setReplyingTo(comment.id)
+                              const commentAuthor = `${comment.commenter.slice(0, 6)}...${comment.commenter.slice(-4)}`
+                              setReplyText(`@${commentAuthor} `)
+                            }
+                          }}
+                          replyText={replyText}
+                          onReplyTextChange={setReplyText}
+                          isProcessing={isProcessing === "reply"}
+                          isConnected={isConnected}
+                        />
                       )
                     })}
                   </div>
