@@ -1,0 +1,24 @@
+# Hardhat files (not needed for build)
+hardhat.config.js
+contracts/
+scripts/
+cache/
+artifacts/
+typechain-types/
+
+# Environment files (handled by Vercel)
+.env.local
+.env
+
+# Documentation
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+

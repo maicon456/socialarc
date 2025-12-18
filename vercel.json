@@ -4,15 +4,10 @@
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
+  "outputDirectory": ".next",
   "env": {
     "NEXT_PUBLIC_ARCNET_RPC": "https://rpc.testnet.arc.network",
     "NEXT_PUBLIC_ARCNET_CHAIN_ID": "0x4D0A2"
-  },
-  "functions": {
-    "app/**/*.tsx": {
-      "runtime": "nodejs20.x"
-    }
   }
 }
 
